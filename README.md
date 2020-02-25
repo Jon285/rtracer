@@ -5,3 +5,7 @@ Scratch"](https://www.gabrielgambetta.com/computer-graphics-from-scratch/introdu
 series,
 plus some more addition, like a bit more of abstraction, multithreading and my ~~bad~~
 idiomatic code.
+
+![rtraced][image]
+
+[image]: https://github.com/Jon285/rtracer/blob/master/src/images/img.ppm "A rtraced image"
