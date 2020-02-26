@@ -3,11 +3,13 @@ use cgmath::prelude::*;
 use cgmath::Matrix3;
 use cgmath::Vector3;
 
+use image::Rgb;
+
 use std::sync::Arc;
 
 #[derive(Debug, Copy, Clone)]
 pub struct Material {
-    pub color: Vector3<u8>,
+    pub color: Rgb<u8>,
     pub specular: i32,
     pub reflective: f32,
 }

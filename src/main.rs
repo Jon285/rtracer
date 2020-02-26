@@ -1,9 +1,8 @@
 extern crate cgmath;
+extern crate image;
 
 use std::cmp::Ordering;
 use std::f32::INFINITY;
-use std::fs::File;
-use std::io::Write;
 use std::sync::{Arc, Mutex};
 // use std::time::Instant;
 
@@ -11,23 +10,35 @@ use cgmath::prelude::*;
 use cgmath::Matrix3;
 use cgmath::Vector3;
 
+use image::Rgb;
+
 use rtracer::{Canvas, Light, LightType, Material, Object, Ray, Scene, Sphere, ThreadPool};
 
 const ORIGIN: Vector3<f32> = Vector3::new(0.0, 0.0, 0.0);
-const WIDTH: i32 = 600;
-const HEIGHT: i32 = 800;
+const WIDTH: i32 = 800;
+const HEIGHT: i32 = 1000;
 
-fn main() -> std::io::Result<()> {
-    let canvas = Arc::new(Mutex::new(Canvas::new(WIDTH as usize, HEIGHT as usize)));
+fn main() {
+    let canvas = Arc::new(Mutex::new(Canvas::new(WIDTH as u32, HEIGHT as u32)));
     let spheres = vec![
+        Sphere {
+            pos: Vector3::new(0.0, 1.0, 5.0),
+            transform: Matrix3::identity(),
+            radius: 1.0,
+            material: Material {
+                color: Rgb([255, 0, 255]),
+                specular: 500,
+                reflective: 0.2,
+            },
+        },
         Sphere {
             pos: Vector3::new(0.0, -1.0, 3.0),
             transform: Matrix3::identity(),
             radius: 1.0,
             material: Material {
-                color: Vector3::new(255, 0, 0),
+                color: Rgb([255, 0, 0]),
                 specular: 500,
-                reflective: 0.6,
+                reflective: 0.2,
             },
         },
         Sphere {
@@ -35,9 +46,9 @@ fn main() -> std::io::Result<()> {
             transform: Matrix3::identity(),
             radius: 1.0,
             material: Material {
-                color: Vector3::new(0, 0, 255),
+                color: Rgb([0, 0, 255]),
                 specular: 500,
-                reflective: 0.6,
+                reflective: 0.3,
             },
         },
         Sphere {
@@ -45,7 +56,7 @@ fn main() -> std::io::Result<()> {
             transform: Matrix3::identity(),
             radius: 1.0,
             material: Material {
-                color: Vector3::new(0, 255, 0),
+                color: Rgb([0, 255, 0]),
                 specular: 10,
                 reflective: 0.4,
             },
@@ -55,9 +66,9 @@ fn main() -> std::io::Result<()> {
             transform: Matrix3::identity(),
             radius: 5000.0,
             material: Material {
-                color: Vector3::new(255, 255, 0),
+                color: Rgb([255, 255, 0]),
                 specular: 1000,
-                reflective: 0.2,
+                reflective: 0.5,
             },
         },
     ];
@@ -99,13 +110,8 @@ fn main() -> std::io::Result<()> {
     //just to join all the threads
     std::mem::drop(pool);
 
-    let img = canvas.lock().unwrap().to_ppm();
-    let mut file = File::create("images/img.ppm")?;
-    file.write_all(img.as_bytes())?;
-
+    canvas.lock().unwrap().write("images/img.png").unwrap();
     // println!("{}", now.elapsed().as_secs());
-
-    Ok(())
 }
 
 #[inline(always)]
@@ -118,7 +124,7 @@ fn reflect_vec(direction: Vector3<f32>, normal: Vector3<f32>) -> Vector3<f32> {
     2.0 * normal * normal.dot(direction) - direction
 }
 
-fn trace_ray(ray: Ray, min: f32, max: f32, scene: Arc<Scene>, limit: u8) -> Vector3<u8> {
+fn trace_ray(ray: Ray, min: f32, max: f32, scene: Arc<Scene>, limit: u8) -> Rgb<u8> {
     //for each sphere
     // intersect
     // get the minumun value i.e the closest intersection
@@ -146,36 +152,38 @@ fn trace_ray(ray: Ray, min: f32, max: f32, scene: Arc<Scene>, limit: u8) -> Vect
             scene.clone(),
         );
 
-        let color = material.color.cast::<f32>().unwrap() * light;
+        let color = Rgb([
+            material.color[0] as f32 * light,
+            material.color[1] as f32 * light,
+            material.color[2] as f32 * light,
+        ]);
         let refl = material.reflective;
 
         //if we hit the recursion limit or the material isn't reflective
         if limit == 0 || refl <= 0.0 {
-            color.cast::<u8>().unwrap_or_else(|| {
-                Vector3::new(
-                    color.x.min(255.0) as u8,
-                    color.y.min(255.0) as u8,
-                    color.z.min(255.0) as u8,
-                )
-            })
+            Rgb([
+                color[0].min(255.0) as u8,
+                color[1].min(255.0) as u8,
+                color[2].min(255.0) as u8,
+            ])
         } else {
             let refl_ray = Ray::new(point, reflect_vec(-ray.direction, normal));
-            let refl_color = trace_ray(refl_ray, 0.0001, INFINITY, scene, limit - 1)
-                .cast::<f32>()
-                .unwrap();
+            let refl_color = trace_ray(refl_ray, 0.0001, INFINITY, scene, limit - 1);
 
-            (color * (1.0 - refl) + refl_color * refl)
-                .cast::<u8>()
-                .unwrap_or_else(|| {
-                    Vector3::new(
-                        refl_color.x.min(255.0) as u8,
-                        refl_color.y.min(255.0) as u8,
-                        refl_color.z.min(255.0) as u8,
-                    )
-                })
+            let refl_color = Rgb([
+                color[0] * (1.0 - refl) + refl_color[0] as f32 * refl,
+                color[1] * (1.0 - refl) + refl_color[1] as f32 * refl,
+                color[2] * (1.0 - refl) + refl_color[2] as f32 * refl,
+            ]);
+
+            Rgb([
+                refl_color[0].min(255.0) as u8,
+                refl_color[1].min(255.0) as u8,
+                refl_color[2].min(255.0) as u8,
+            ])
         }
     } else {
-        Vector3::new(0, 0, 0)
+        Rgb([0, 0, 0])
     }
 }
 

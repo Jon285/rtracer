@@ -3,4 +3,4 @@ debug:
 
 all:
 	cargo run --release
-	feh images/img.ppm
+	feh images/img.png

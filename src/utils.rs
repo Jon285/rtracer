@@ -1,16 +1,17 @@
 use crate::{Light, Sphere};
-use cgmath::Vector3;
+use image::{ImageResult, Rgb, RgbImage};
+use std::path::Path;
 
 #[derive(Debug, Clone)]
 pub struct Canvas {
-    width: usize,
-    height: usize,
-    canvas: Vec<Vector3<u8>>,
+    width: u32,
+    height: u32,
+    canvas: RgbImage,
 }
 
 impl Canvas {
-    pub fn new(width: usize, height: usize) -> Self {
-        let canvas = [Vector3::new(0, 0, 0)].repeat(width * height);
+    pub fn new(width: u32, height: u32) -> Self {
+        let canvas = RgbImage::from_pixel(width, height, Rgb([0, 0, 0]));
         Canvas {
             width,
             height,
@@ -18,25 +19,22 @@ impl Canvas {
         }
     }
 
-    pub fn put_pixel(&mut self, x: i32, y: i32, color: Vector3<u8>) {
-        let sx = (self.width as i32 / 2) + x;
-        let sy = (self.height as i32 / 2) - y;
-        // dbg!(sx, sy, self.width, x, y);
-        let index = sx as usize + self.width * sy as usize;
-        // dbg!(index);
+    pub fn put_pixel(&mut self, x: i32, y: i32, color: Rgb<u8>) {
+        let sx: u32 = ((self.width as i32 / 2) + x) as u32;
+        let sy: u32 = ((self.height as i32 / 2) - y) as u32;
 
-        if index < (self.width * self.height) {
-            self.canvas[index] = color;
+        //check of out of bound index
+        if sx == self.width || sy == self.height {
+            return;
         }
+
+        self.canvas.put_pixel(sx, sy, color);
     }
 
-    pub fn to_ppm(&self) -> String {
-        let mut img = format!("P3\n{} {}\n255", self.width, self.height);
-        for color in self.canvas.iter() {
-            let ncol = format!("\n{} {} {}", color.x, color.y, color.z);
-            img.push_str(&ncol);
-        }
-        img
+    #[inline]
+    pub fn write<P: AsRef<Path>>(&self, path: P) -> ImageResult<()> {
+        self.canvas.save(path)?;
+        Ok(())
     }
 }
 
