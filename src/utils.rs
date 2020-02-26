@@ -1,6 +1,7 @@
-use crate::{Light, Sphere};
+use crate::{Light, Object};
 use image::{ImageResult, Rgb, RgbImage};
 use std::path::Path;
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct Canvas {
@@ -23,7 +24,7 @@ impl Canvas {
         let sx: u32 = ((self.width as i32 / 2) + x) as u32;
         let sy: u32 = ((self.height as i32 / 2) - y) as u32;
 
-        //check of out of bound index
+        // check of out of bound index
         if sx == self.width || sy == self.height {
             return;
         }
@@ -39,6 +40,6 @@ impl Canvas {
 }
 
 pub struct Scene {
-    pub spheres: Vec<Sphere>,
+    pub objects: Vec<Arc<dyn Object + Send + Sync>>,
     pub lights: Vec<Light>,
 }

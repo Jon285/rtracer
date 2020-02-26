@@ -22,6 +22,13 @@ pub struct Sphere {
     pub material: Material,
 }
 
+#[derive(Debug, Copy, Clone)]
+pub struct Plane {
+    pub pos: Vector3<f32>,
+    pub normal: Vector3<f32>,
+    pub material: Material,
+}
+
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub enum LightType {
     Ambient,
@@ -45,6 +52,7 @@ pub trait Object {
     fn intersect(&self, ray: Ray, min: f32, max: f32) -> Option<Intersection>;
     fn material(&self) -> Material;
     fn pos(&self) -> Vector3<f32>;
+    fn normal_at(&self, point: Vector3<f32>) -> Vector3<f32>;
 }
 
 impl Object for Sphere {
@@ -82,5 +90,40 @@ impl Object for Sphere {
 
     fn pos(&self) -> Vector3<f32> {
         self.pos
+    }
+
+    fn normal_at(&self, point: Vector3<f32>) -> Vector3<f32> {
+        (point - self.pos).normalize()
+    }
+}
+
+impl Object for Plane {
+    fn intersect(&self, ray: Ray, min: f32, max: f32) -> Option<Intersection> {
+        let denom = self.normal.dot(ray.direction);
+        if denom.abs() > std::f32::EPSILON {
+            let t = (self.pos - ray.origin).dot(self.normal) / denom;
+
+            if t >= 0.0 && t > min && t < max {
+                return Some(Intersection {
+                    t,
+                    obj: Arc::new(self),
+                });
+            } else {
+                return None;
+            }
+        }
+        None
+    }
+
+    fn material(&self) -> Material {
+        self.material
+    }
+
+    fn pos(&self) -> Vector3<f32> {
+        self.pos
+    }
+
+    fn normal_at(&self, _: Vector3<f32>) -> Vector3<f32> {
+        self.normal
     }
 }

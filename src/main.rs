@@ -1,5 +1,6 @@
 extern crate cgmath;
 extern crate image;
+extern crate rand;
 
 use std::cmp::Ordering;
 use std::f32::INFINITY;
@@ -7,31 +8,33 @@ use std::sync::{Arc, Mutex};
 // use std::time::Instant;
 
 use cgmath::prelude::*;
-use cgmath::Matrix3;
-use cgmath::Vector3;
+use cgmath::{Matrix3, Vector3};
 
-use image::Rgb;
+use image::{Pixel, Rgb};
 
-use rtracer::{Canvas, Light, LightType, Material, Object, Ray, Scene, Sphere, ThreadPool};
+use rand::Rng;
+
+use rtracer::{Canvas, Light, LightType, Material, Object, Plane, Ray, Scene, Sphere, ThreadPool};
 
 const ORIGIN: Vector3<f32> = Vector3::new(0.0, 0.0, 0.0);
-const WIDTH: i32 = 800;
-const HEIGHT: i32 = 1000;
+const SAMPLES: i32 = 100;
+const WIDTH: i32 = 1000;
+const HEIGHT: i32 = 800;
 
 fn main() {
     let canvas = Arc::new(Mutex::new(Canvas::new(WIDTH as u32, HEIGHT as u32)));
-    let spheres = vec![
-        Sphere {
+    let objects: Vec<Arc<dyn Object + Send + Sync>> = vec![
+        Arc::new(Sphere {
             pos: Vector3::new(0.0, 1.0, 5.0),
             transform: Matrix3::identity(),
             radius: 1.0,
             material: Material {
                 color: Rgb([255, 0, 255]),
-                specular: 500,
-                reflective: 0.2,
+                specular: 800,
+                reflective: 0.5,
             },
-        },
-        Sphere {
+        }),
+        Arc::new(Sphere {
             pos: Vector3::new(0.0, -1.0, 3.0),
             transform: Matrix3::identity(),
             radius: 1.0,
@@ -40,8 +43,8 @@ fn main() {
                 specular: 500,
                 reflective: 0.2,
             },
-        },
-        Sphere {
+        }),
+        Arc::new(Sphere {
             pos: Vector3::new(2.0, 0.0, 4.0),
             transform: Matrix3::identity(),
             radius: 1.0,
@@ -50,8 +53,8 @@ fn main() {
                 specular: 500,
                 reflective: 0.3,
             },
-        },
-        Sphere {
+        }),
+        Arc::new(Sphere {
             pos: Vector3::new(-2.0, 0.0, 4.0),
             transform: Matrix3::identity(),
             radius: 1.0,
@@ -60,17 +63,53 @@ fn main() {
                 specular: 10,
                 reflective: 0.4,
             },
-        },
-        Sphere {
-            pos: Vector3::new(0.0, -5001.0, 0.0),
-            transform: Matrix3::identity(),
-            radius: 5000.0,
+        }),
+        // Arc::new(Sphere {
+        //     pos: Vector3::new(0.0, -5001.0, 0.0),
+        //     transform: Matrix3::identity(),
+        //     radius: 5000.0,
+        //     material: Material {
+        //         color: Rgb([255, 255, 0]),
+        //         specular: 1000,
+        //         reflective: 0.5,
+        //     },
+        // }),
+        Arc::new(Plane {
+            pos: Vector3::new(0.0, -1.0, 0.0),
+            normal: Vector3::unit_y(),
             material: Material {
-                color: Rgb([255, 255, 0]),
+                color: Rgb([255, 0, 255]),
                 specular: 1000,
                 reflective: 0.5,
             },
-        },
+        }),
+        Arc::new(Plane {
+            pos: Vector3::new(0.0, 0.0, 10.0),
+            normal: -Vector3::unit_z(),
+            material: Material {
+                color: Rgb([255, 0, 0]),
+                specular: 500,
+                reflective: 0.3,
+            },
+        }),
+        Arc::new(Plane {
+            pos: Vector3::new(3.0, 0.0, 0.0),
+            normal: -Vector3::unit_x(),
+            material: Material {
+                color: Rgb([0, 255, 0]),
+                specular: 1000,
+                reflective: 0.5,
+            },
+        }),
+        Arc::new(Plane {
+            pos: Vector3::new(-3.0, 0.0, 0.0),
+            normal: Vector3::unit_x(),
+            material: Material {
+                color: Rgb([0, 0, 255]),
+                specular: 1000,
+                reflective: 0.5,
+            },
+        }),
     ];
 
     let lights = vec![
@@ -86,21 +125,25 @@ fn main() {
             kind: LightType::Directional(Vector3::new(1.0, 4.0, 4.0)),
             intensity: 0.2,
         },
+        Light {
+            kind: LightType::Point(Vector3::new(2.0, 2.0, 0.0)),
+            intensity: 0.3,
+        },
     ];
 
-    let scene = Arc::new(Scene { spheres, lights });
+    let scene = Arc::new(Scene { objects, lights });
     let pool = ThreadPool::new(12);
 
     // let now = Instant::now();
-    for x in (-WIDTH / 2)..=(WIDTH / 2) {
-        for y in (-HEIGHT / 2)..=(HEIGHT / 2) {
+    for x in (-WIDTH / 2)..(WIDTH / 2) {
+        for y in (-HEIGHT / 2)..(HEIGHT / 2) {
             let canvas = Arc::clone(&canvas);
             let scene = Arc::clone(&scene);
 
             pool.execute(move || {
                 let dir = canvas_to_viewport(x as f32, y as f32);
-                let ray = Ray::new(ORIGIN, dir);
-                let color = trace_ray(ray, 1.0, INFINITY, scene, 3);
+                let ray = Ray::new(ORIGIN, dir.normalize());
+                let color = trace_ray(ray, 1.0, INFINITY, scene, 5);
 
                 canvas.lock().unwrap().put_pixel(x, y, color);
             });
@@ -116,7 +159,7 @@ fn main() {
 
 #[inline(always)]
 fn canvas_to_viewport(x: f32, y: f32) -> Vector3<f32> {
-    Vector3::new(x * 1.0 / WIDTH as f32, y * 1.0 / HEIGHT as f32, 1.0)
+    Vector3::new(x * 1.8 / WIDTH as f32, y * 1.8 / HEIGHT as f32, 1.0)
 }
 
 #[inline(always)]
@@ -129,9 +172,9 @@ fn trace_ray(ray: Ray, min: f32, max: f32, scene: Arc<Scene>, limit: u8) -> Rgb<
     // intersect
     // get the minumun value i.e the closest intersection
     if let Some(res) = scene
-        .spheres
+        .objects
         .iter()
-        .filter_map(|sphere| sphere.intersect(ray, min, max))
+        .filter_map(|obj| obj.intersect(ray, min, max))
         .min_by(|x, y| {
             if x.t < y.t {
                 Ordering::Less
@@ -141,7 +184,7 @@ fn trace_ray(ray: Ray, min: f32, max: f32, scene: Arc<Scene>, limit: u8) -> Rgb<
         })
     {
         let point = ray.position(res.t);
-        let normal = (point - res.obj.pos()).normalize();
+        let normal = res.obj.normal_at(point);
         let material = res.obj.material();
 
         let light = compute_light(
@@ -209,9 +252,9 @@ fn compute_light(
             // if there are any sphere on the way from this point to the light
             // stop calculating an return
             if scene
-                .spheres
+                .objects
                 .iter()
-                .filter_map(|sphere| sphere.intersect(Ray::new(point, light_dir), 0.001, max))
+                .filter_map(|obj| obj.intersect(Ray::new(point, light_dir), 0.001, max))
                 .min_by(|x, y| {
                     if x.t < y.t {
                         Ordering::Less

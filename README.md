@@ -7,7 +7,7 @@ plus some more addition, like a bit more of abstraction, multithreading and my ~
 idiomatic code.
 
 ## TODOs
-* More objects (cubes, planes, cylinders, triangles, etc)
+* More objects (cubes, ~~planes~~, cylinders, triangles, etc)
 * Bounding Volume Hierarchy
 * Free camera
 * Anti-Aliasing
