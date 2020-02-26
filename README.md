@@ -15,5 +15,5 @@ idiomatic code.
 * Transparency and Refraction
 * Constructive Solid Geometry
 
-A traced image, the code create ~~PPM images, I converted externaly to PNG to post here.~~ now can create PNG, JPEG and any other format the image crate supports
+A traced image, the code creates ~~PPM images that I converted externaly to PNG to post here.~~ now can create PNG, JPEG and any other format the image crate supports!
 ![img](https://github.com/Jon285/rtracer/blob/master/src/images/img.png)
