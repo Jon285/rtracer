@@ -9,7 +9,6 @@ use std::sync::{Arc, Mutex};
 
 use cgmath::prelude::*;
 use cgmath::{Matrix3, Vector3};
-
 use image::{Pixel, Rgb};
 
 use rand::Rng;
@@ -17,7 +16,7 @@ use rand::Rng;
 use rtracer::{Canvas, Light, LightType, Material, Object, Plane, Ray, Scene, Sphere, ThreadPool};
 
 const ORIGIN: Vector3<f32> = Vector3::new(0.0, 0.0, 0.0);
-const SAMPLES: i32 = 100;
+const SAMPLES: i32 = 8;
 const WIDTH: i32 = 1000;
 const HEIGHT: i32 = 800;
 
@@ -135,17 +134,43 @@ fn main() {
     let pool = ThreadPool::new(12);
 
     // let now = Instant::now();
-    for x in (-WIDTH / 2)..(WIDTH / 2) {
-        for y in (-HEIGHT / 2)..(HEIGHT / 2) {
+
+    for x in 0..WIDTH {
+        for y in 0..HEIGHT {
             let canvas = Arc::clone(&canvas);
             let scene = Arc::clone(&scene);
 
             pool.execute(move || {
                 let dir = canvas_to_viewport(x as f32, y as f32);
                 let ray = Ray::new(ORIGIN, dir.normalize());
-                let color = trace_ray(ray, 1.0, INFINITY, scene, 5);
+                let color = trace_ray(ray, 1.0, INFINITY, scene.clone(), 5);
 
-                canvas.lock().unwrap().put_pixel(x, y, color);
+                // for p in 0..SAMPLES {
+                //     for q in 0..SAMPLES {
+                //         let rx = rand::thread_rng().gen_range(0.0, 1.0);
+                //         let ry = rand::thread_rng().gen_range(0.0, 1.0);
+                //         let dir = canvas_to_viewport(
+                //             x as f32 + (p as f32 + rx) / SAMPLES as f32,
+                //             y as f32 + (q as f32 + ry) / SAMPLES as f32,
+                //         );
+
+                //         // dir.x += (p as f32 + rx) / SAMPLES as f32;
+                //         // dir.y += (q as f32 + ry) / SAMPLES as f32;
+
+                //         let pcol =
+                //             trace_ray(Ray::new(ORIGIN, dir), 1.0, INFINITY, scene.clone(), 5);
+
+                //         color.blend(&pcol);
+                //         //     color[0] = (color[0] as f32 + pcol[0] as f32).max(255.0) as u8;
+                //         //     color[1] = (color[1] as f32 + pcol[1] as f32).max(255.0) as u8;
+                //         //     color[2] = (color[2] as f32 + pcol[2] as f32).max(255.0) as u8;
+                //     }
+                // }
+
+                canvas
+                    .lock()
+                    .unwrap()
+                    .put_pixel(x, y, color /*.map(|p| p / SAMPLES.pow(2) as u8)*/);
             });
         }
     }
@@ -159,7 +184,9 @@ fn main() {
 
 #[inline(always)]
 fn canvas_to_viewport(x: f32, y: f32) -> Vector3<f32> {
-    Vector3::new(x * 1.8 / WIDTH as f32, y * 1.8 / HEIGHT as f32, 1.0)
+    let u = 0.9 + 1.8 * (x + 0.5) / WIDTH as f32;
+    let v = 0.9 + 1.8 * (y + 0.5) / HEIGHT as f32;
+    Vector3::new(u, v, 1.0).normalize()
 }
 
 #[inline(always)]
@@ -249,21 +276,12 @@ fn compute_light(
             };
 
             //check for shadows
-            // if there are any sphere on the way from this point to the light
+            // if there are any objects on the way from this point to the light
             // stop calculating an return
-            if scene
-                .objects
-                .iter()
-                .filter_map(|obj| obj.intersect(Ray::new(point, light_dir), 0.001, max))
-                .min_by(|x, y| {
-                    if x.t < y.t {
-                        Ordering::Less
-                    } else {
-                        Ordering::Greater
-                    }
-                })
-                .is_some()
-            {
+            if scene.objects.iter().any(|obj| {
+                obj.intersect(Ray::new(point, light_dir), 0.001, max)
+                    .is_some()
+            }) {
                 return 0.0;
             }
 
