@@ -1,3 +1,4 @@
+// basically the pool implementation in the Rust book
 use std::ops::Drop;
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
@@ -39,15 +40,27 @@ impl ThreadPool {
 
         self.sender.send(job).unwrap();
     }
+
+    pub fn join(&mut self) {
+        for _ in self.workers.iter_mut() {
+            self.sender.send(Message::Finish).unwrap();
+        }
+
+        for worker in self.workers.iter_mut() {
+            if let Some(thread) = worker.thread.take() {
+                thread.join().unwrap();
+            }
+        }
+    }
 }
 
 impl Drop for ThreadPool {
     fn drop(&mut self) {
-        for _ in &mut self.workers {
-            self.sender.send(Message::Finish).unwrap();
+        for _ in self.workers.iter_mut() {
+            self.sender.send(Message::Finish).unwrap_or(());
         }
 
-        for worker in &mut self.workers {
+        for worker in self.workers.iter_mut() {
             if let Some(thread) = worker.thread.take() {
                 thread.join().unwrap();
             }

@@ -21,8 +21,8 @@ impl Canvas {
     }
 
     pub fn put_pixel(&mut self, x: i32, y: i32, color: Rgb<u8>) {
-        let sx: u32 = x/*((self.width as i32 / 2) + x)*/ as u32;
-        let sy: u32 = y/*((self.height as i32 / 2) - y)*/ as u32;
+        let sx: u32 = ((self.width as i32 / 2) + x) as u32;
+        let sy: u32 = ((self.height as i32 / 2) - y) as u32;
 
         // check of out of bound index
         if sx == self.width || sy == self.height {

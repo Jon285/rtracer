@@ -10,7 +10,7 @@ idiomatic code.
 * More objects (cubes, ~~planes~~, cylinders, triangles, etc)
 * Bounding Volume Hierarchy
 * Free camera
-* Anti-Aliasing
+* ~~Anti-Aliasing~~
 * Global Illumination
 * Transparency and Refraction
 * Constructive Solid Geometry

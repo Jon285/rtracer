@@ -5,11 +5,11 @@ extern crate rand;
 use std::cmp::Ordering;
 use std::f32::INFINITY;
 use std::sync::{Arc, Mutex};
-// use std::time::Instant;
+use std::time::Instant;
 
 use cgmath::prelude::*;
 use cgmath::{Matrix3, Vector3};
-use image::{Pixel, Rgb};
+use image::Rgb;
 
 use rand::Rng;
 
@@ -63,23 +63,13 @@ fn main() {
                 reflective: 0.4,
             },
         }),
-        // Arc::new(Sphere {
-        //     pos: Vector3::new(0.0, -5001.0, 0.0),
-        //     transform: Matrix3::identity(),
-        //     radius: 5000.0,
-        //     material: Material {
-        //         color: Rgb([255, 255, 0]),
-        //         specular: 1000,
-        //         reflective: 0.5,
-        //     },
-        // }),
         Arc::new(Plane {
             pos: Vector3::new(0.0, -1.0, 0.0),
             normal: Vector3::unit_y(),
             material: Material {
                 color: Rgb([255, 0, 255]),
-                specular: 1000,
-                reflective: 0.5,
+                specular: 500,
+                reflective: 0.35,
             },
         }),
         Arc::new(Plane {
@@ -131,62 +121,65 @@ fn main() {
     ];
 
     let scene = Arc::new(Scene { objects, lights });
-    let pool = ThreadPool::new(12);
+    let mut pool = ThreadPool::new(6);
 
-    // let now = Instant::now();
+    let now = Instant::now();
 
-    for x in 0..WIDTH {
-        for y in 0..HEIGHT {
+    for x in (-WIDTH / 2)..(WIDTH / 2) {
+        for y in (-HEIGHT / 2)..(HEIGHT / 2) {
             let canvas = Arc::clone(&canvas);
             let scene = Arc::clone(&scene);
 
             pool.execute(move || {
-                let dir = canvas_to_viewport(x as f32, y as f32);
-                let ray = Ray::new(ORIGIN, dir.normalize());
-                let color = trace_ray(ray, 1.0, INFINITY, scene.clone(), 5);
+                // to hold de sum of the colors
+                let mut rgb = (0, 0, 0);
 
-                // for p in 0..SAMPLES {
-                //     for q in 0..SAMPLES {
-                //         let rx = rand::thread_rng().gen_range(0.0, 1.0);
-                //         let ry = rand::thread_rng().gen_range(0.0, 1.0);
-                //         let dir = canvas_to_viewport(
-                //             x as f32 + (p as f32 + rx) / SAMPLES as f32,
-                //             y as f32 + (q as f32 + ry) / SAMPLES as f32,
-                //         );
+                // this anti-aliasing method was taken from Fundamentals of Computer Graphics
+                // great book!
+                for p in 0..SAMPLES {
+                    for q in 0..SAMPLES {
+                        //generate random rays
+                        let rx = rand::thread_rng().gen_range(0.0, 1.0);
+                        let ry = rand::thread_rng().gen_range(0.0, 1.0);
+                        let dir = canvas_to_viewport(
+                            x as f32 + (p as f32 + rx) / SAMPLES as f32,
+                            y as f32 + (q as f32 + ry) / SAMPLES as f32,
+                        );
 
-                //         // dir.x += (p as f32 + rx) / SAMPLES as f32;
-                //         // dir.y += (q as f32 + ry) / SAMPLES as f32;
+                        let pcol =
+                            trace_ray(Ray::new(ORIGIN, dir), 1.0, INFINITY, scene.clone(), 5);
 
-                //         let pcol =
-                //             trace_ray(Ray::new(ORIGIN, dir), 1.0, INFINITY, scene.clone(), 5);
+                        // sum the color values
+                        rgb.0 += pcol[0] as i32;
+                        rgb.1 += pcol[1] as i32;
+                        rgb.2 += pcol[2] as i32;
+                    }
+                }
 
-                //         color.blend(&pcol);
-                //         //     color[0] = (color[0] as f32 + pcol[0] as f32).max(255.0) as u8;
-                //         //     color[1] = (color[1] as f32 + pcol[1] as f32).max(255.0) as u8;
-                //         //     color[2] = (color[2] as f32 + pcol[2] as f32).max(255.0) as u8;
-                //     }
-                // }
-
-                canvas
-                    .lock()
-                    .unwrap()
-                    .put_pixel(x, y, color /*.map(|p| p / SAMPLES.pow(2) as u8)*/);
+                // store the average of each channel
+                // blending the colors with image's blend method wasn't working
+                // so I came up with that, not optimal, but works
+                canvas.lock().unwrap().put_pixel(
+                    x,
+                    y,
+                    Rgb([
+                        (rgb.0 / SAMPLES.pow(2)) as u8,
+                        (rgb.1 / SAMPLES.pow(2)) as u8,
+                        (rgb.2 / SAMPLES.pow(2)) as u8,
+                    ]),
+                );
             });
         }
     }
 
-    //just to join all the threads
-    std::mem::drop(pool);
-
+    pool.join();
     canvas.lock().unwrap().write("images/img.png").unwrap();
-    // println!("{}", now.elapsed().as_secs());
+    println!("{}", now.elapsed().as_secs());
 }
 
 #[inline(always)]
 fn canvas_to_viewport(x: f32, y: f32) -> Vector3<f32> {
-    let u = 0.9 + 1.8 * (x + 0.5) / WIDTH as f32;
-    let v = 0.9 + 1.8 * (y + 0.5) / HEIGHT as f32;
-    Vector3::new(u, v, 1.0).normalize()
+    Vector3::new(x * 1.8 / WIDTH as f32, y * 1.8 / HEIGHT as f32, 1.0)
 }
 
 #[inline(always)]
