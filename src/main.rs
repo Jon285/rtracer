@@ -1,8 +1,6 @@
-extern crate cgmath;
-extern crate image;
-extern crate rand;
+// rustfmt and clippy are disagreing on that, so I'll just turn it off
+#![allow(clippy::block_in_if_condition_stmt)]
 
-use std::cmp::Ordering;
 use std::f32::INFINITY;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
@@ -195,13 +193,7 @@ fn trace_ray(ray: Ray, min: f32, max: f32, scene: Arc<Scene>, limit: u8) -> Rgb<
         .objects
         .iter()
         .filter_map(|obj| obj.intersect(ray, min, max))
-        .min_by(|x, y| {
-            if x.t < y.t {
-                Ordering::Less
-            } else {
-                Ordering::Greater
-            }
-        })
+        .min_by(|x, y| x.t.partial_cmp(&y.t).unwrap())
     {
         let point = ray.position(res.t);
         let normal = res.obj.normal_at(point);
